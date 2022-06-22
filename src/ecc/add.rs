@@ -22,6 +22,7 @@ pub struct Config<F> {
 }
 
 impl<F: FieldExt> Config<F> {
+    #[allow(clippy::too_many_arguments)]
     pub fn configure(
         meta: &mut ConstraintSystem<F>,
         lambda: Column<Advice>,
@@ -35,6 +36,11 @@ impl<F: FieldExt> Config<F> {
         delta: Column<Advice>,
     ) -> Self {
         let q_add = meta.selector();
+
+        meta.enable_equality(x_p);
+        meta.enable_equality(y_p);
+        meta.enable_equality(x_qr);
+        meta.enable_equality(y_qr);
 
         meta.create_gate("add", |meta| {
             let q_add = meta.query_selector(q_add);

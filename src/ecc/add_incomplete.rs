@@ -1,8 +1,8 @@
 use super::ECCPoint;
 use halo2_proofs::{
     arithmetic::FieldExt,
-    circuit::{AssignedCell, Region},
-    plonk::{Advice, Assigned, Column, ConstraintSystem, Constraints, Error, Expression, Selector},
+    circuit::Region,
+    plonk::{Advice, Column, ConstraintSystem, Constraints, Error, Expression, Selector},
     poly::Rotation,
 };
 use std::marker::PhantomData;
@@ -25,6 +25,11 @@ impl<F: FieldExt> Config<F> {
         y_qr: Column<Advice>,
     ) -> Self {
         let q_add_incomplete = meta.selector();
+
+        meta.enable_equality(x_p);
+        meta.enable_equality(y_p);
+        meta.enable_equality(x_qr);
+        meta.enable_equality(y_qr);
 
         meta.create_gate("incomplete addition", |meta| {
             let q_add_incomplete = meta.query_selector(q_add_incomplete);
