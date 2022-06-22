@@ -1,16 +1,11 @@
-use std::marker::PhantomData;
-
+use super::ECCPoint;
 use halo2_proofs::{
-    circuit::{Region, AssignedCell},
-    poly::{Rotation }, arithmetic::{FieldExt},
-    plonk::{Column, Advice, Selector, ConstraintSystem, Constraints, Expression, Assigned, Error}
-        
+    arithmetic::FieldExt,
+    circuit::{AssignedCell, Region},
+    plonk::{Advice, Assigned, Column, ConstraintSystem, Constraints, Error, Expression, Selector},
+    poly::Rotation,
 };
-
-pub struct ECCPoint<F: FieldExt> {
-    x: AssignedCell<Assigned<F>, F>,
-    y: AssignedCell<Assigned<F>, F>
-}
+use std::marker::PhantomData;
 
 pub struct Config<F> {
     q_add: Selector,
@@ -23,7 +18,7 @@ pub struct Config<F> {
     beta: Column<Advice>,
     gamma: Column<Advice>,
     delta: Column<Advice>,
-    _market: PhantomData<F>
+    _market: PhantomData<F>,
 }
 
 impl<F: FieldExt> Config<F> {
@@ -37,11 +32,11 @@ impl<F: FieldExt> Config<F> {
         alpha: Column<Advice>,
         beta: Column<Advice>,
         gamma: Column<Advice>,
-        delta: Column<Advice>
+        delta: Column<Advice>,
     ) -> Self {
         let q_add = meta.selector();
 
-        meta.create_gate("add", |meta|{
+        meta.create_gate("add", |meta| {
             let q_add = meta.query_selector(q_add);
 
             // given points
@@ -71,7 +66,7 @@ impl<F: FieldExt> Config<F> {
 
             // constants
             let one = Expression::Constant(F::one());
-            
+
             // polynomial constraints
             let p1a = {
                 let tmp = (x_q_minus_x_p.clone() * lambda.clone()) - (y_q.clone() - y_p.clone());
@@ -84,32 +79,52 @@ impl<F: FieldExt> Config<F> {
                 let tmp = tmp.clone() - (three.clone() * x_p.clone().square());
                 (one.clone() - if_alpha.clone()) * tmp
             };
-            let p3a = x_p.clone() * x_q.clone() * x_q_minus_x_p.clone() * (lambda.clone().square() - x_p.clone() - x_q.clone() - x_r.clone());
-            let p3b = x_p.clone() * x_q.clone() * x_q_minus_x_p.clone() * ((lambda.clone() * (x_p.clone() - x_r.clone())) - x_p.clone() - y_p.clone() - y_r.clone());
-            let p3c = x_p.clone() * x_q.clone() * y_q_plus_y_p.clone() * (lambda.clone().square() - x_p.clone() - x_q.clone() - x_r.clone());
-            let p3d = x_p.clone() * x_q.clone() * y_q_plus_y_p.clone() * ((lambda.clone() * (x_p.clone() - x_r.clone())) - x_p.clone() - y_p.clone() - y_r.clone());
+            let p3a = x_p.clone()
+                * x_q.clone()
+                * x_q_minus_x_p.clone()
+                * (lambda.clone().square() - x_p.clone() - x_q.clone() - x_r.clone());
+            let p3b = x_p.clone()
+                * x_q.clone()
+                * x_q_minus_x_p.clone()
+                * ((lambda.clone() * (x_p.clone() - x_r.clone()))
+                    - x_p.clone()
+                    - y_p.clone()
+                    - y_r.clone());
+            let p3c = x_p.clone()
+                * x_q.clone()
+                * y_q_plus_y_p.clone()
+                * (lambda.clone().square() - x_p.clone() - x_q.clone() - x_r.clone());
+            let p3d = x_p.clone()
+                * x_q.clone()
+                * y_q_plus_y_p.clone()
+                * ((lambda.clone() * (x_p.clone() - x_r.clone()))
+                    - x_p.clone()
+                    - y_p.clone()
+                    - y_r.clone());
             let p4a = (one.clone() - if_beta.clone()) * (x_r.clone() - x_q.clone());
             let p4b = (one.clone() - if_beta.clone()) * (y_r.clone() - y_q.clone());
             let p5a = (one.clone() - if_gamma.clone()) * (x_r.clone() - x_p.clone());
-            let p5b= (one.clone() - if_gamma.clone()) * (y_r.clone() - y_p.clone());
+            let p5b = (one.clone() - if_gamma.clone()) * (y_r.clone() - y_p.clone());
             let p6a = (one.clone() - if_alpha.clone() - if_delta.clone()) * x_r.clone();
             let p6b = (one - if_alpha - if_delta) * y_r;
 
-
-            Constraints::with_selector(q_add, [
-                ("1a", p1a),
-                ("2a", p2a),
-                ("3a", p3a),
-                ("3b", p3b),
-                ("3c", p3c),
-                ("3d", p3d),
-                ("4a", p4a),
-                ("4b", p4b),
-                ("5a", p5a),
-                ("5b", p5b),
-                ("6a", p6a),
-                ("6b", p6b),
-            ])
+            Constraints::with_selector(
+                q_add,
+                [
+                    ("1a", p1a),
+                    ("2a", p2a),
+                    ("3a", p3a),
+                    ("3b", p3b),
+                    ("3c", p3c),
+                    ("3d", p3d),
+                    ("4a", p4a),
+                    ("4b", p4b),
+                    ("5a", p5a),
+                    ("5b", p5b),
+                    ("6a", p6a),
+                    ("6b", p6b),
+                ],
+            )
         });
 
         Config {
@@ -128,11 +143,11 @@ impl<F: FieldExt> Config<F> {
     }
 
     pub fn assign(
-        self, 
+        self,
         region: &mut Region<'_, F>,
         offset: usize,
         p: ECCPoint<F>,
-        q: ECCPoint<F>
+        q: ECCPoint<F>,
     ) -> Result<ECCPoint<F>, Error> {
         self.q_add.enable(region, offset)?;
 
@@ -146,7 +161,7 @@ impl<F: FieldExt> Config<F> {
         let x_q = q.x.value();
         let y_q = q.y.value();
 
-        let alpha =  (x_q - x_p).invert();
+        let alpha = (x_q - x_p).invert();
         let beta = x_p.invert();
         let gamma = x_q.invert();
         region.assign_advice(|| "α", self.alpha, offset, || alpha)?;
@@ -158,51 +173,47 @@ impl<F: FieldExt> Config<F> {
             .zip(y_p)
             .zip(y_q)
             .map(|((((x_p, x_q), y_p), y_q))| {
-            if x_q == x_p {
-                (y_q + y_p).invert()
-            }else {
-                Assigned::Zero
-            }
-        });
-        region.assign_advice(|| "δ", self.delta, offset, ||delta)?;
+                if x_q == x_p {
+                    (y_q + y_p).invert()
+                } else {
+                    Assigned::Zero
+                }
+            });
+        region.assign_advice(|| "δ", self.delta, offset, || delta)?;
 
-        let lambda =  x_p
+        let lambda = x_p
             .zip(x_q)
             .zip(y_p)
             .zip(y_q)
             .map(|(((x_p, x_q), y_p), y_q)| {
-            if x_q != x_p {
-                (y_q - y_p) * (x_q - x_p).invert()
-            }else if y_p.is_zero_vartime() {
-                (x_p.square() * F::from_u128(3)) * (y_p * F::from_u128(2)).invert()
-            }else {
-                Assigned::Zero
-            }
-        });
+                if x_q != x_p {
+                    (y_q - y_p) * (x_q - x_p).invert()
+                } else if y_p.is_zero_vartime() {
+                    (x_p.square() * F::from_u128(3)) * (y_p * F::from_u128(2)).invert()
+                } else {
+                    Assigned::Zero
+                }
+            });
         region.assign_advice(|| "λ", self.lambda, offset, || lambda)?;
 
         // Calculate and assing x_r, y_r
         let x_r = lambda
             .zip(x_p)
             .zip(x_q)
-            .map(|((lambda, x_p), x_q)|{
-                lambda.square() - x_p - x_q
-            });
+            .map(|((lambda, x_p), x_q)| lambda.square() - x_p - x_q);
         let x_r_cell = region.assign_advice(|| "x_r", self.x_qr, offset + 1, || x_r)?;
         let y_r = lambda
             .zip(x_p)
             .zip(x_r)
             .zip(y_p)
-            .map(|(((lambda, x_p), x_r), y_p)|{
-                ((x_p - x_r) * lambda) - y_p
-            });
+            .map(|(((lambda, x_p), x_r), y_p)| ((x_p - x_r) * lambda) - y_p);
         let y_r_cell = region.assign_advice(|| "y_r", self.x_qr, offset + 1, || y_r)?;
 
         let result = ECCPoint {
             x: x_r_cell,
-            y: y_r_cell
+            y: y_r_cell,
         };
 
-        Ok(result) 
+        Ok(result)
     }
 }

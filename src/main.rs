@@ -1,5 +1,5 @@
-mod add;
+mod ecc;
 
 fn main() {
-    
+
 }
