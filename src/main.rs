@@ -3,13 +3,13 @@ use std::marker::PhantomData;
 use halo2_proofs::{
     circuit::{Region, AssignedCell, layouter, Layouter},
     poly::{Rotation }, arithmetic::{FieldExt, Field},
-    plonk::{Column, Advice, Selector, ConstraintSystem, Constraints, Expression}
+    plonk::{Column, Advice, Selector, ConstraintSystem, Constraints, Expression, Assigned}
         
 };
 
 pub struct ECCPoint<F: FieldExt> {
-    x: AssignedCell<F, F>,
-    y: AssignedCell<F, F>
+    x: AssignedCell<Assigned<F>, F>,
+    y: AssignedCell<Assigned<F>, F>
 }
 
 pub struct Config<F> {
@@ -128,12 +128,85 @@ impl<F: FieldExt> Config<F> {
     }
 
     fn assign(
+        self, 
         layouter: &mut impl Layouter<F>,
+        offset: usize,
         p: ECCPoint<F>,
         q: ECCPoint<F>
     ) {
-        // assignt the region
-        // layouter.assign_region(name, assignment)
+        // assign the region
+        layouter.assign_region(|| "addition", |mut region: Region<'_, F>| {
+            self.q_add.enable(&mut region, offset);
+
+            p.x.copy_advice(|| "x_p", &mut region, self.x_p, offset);
+            p.y.copy_advice(|| "y_p", &mut region, self.y_p, offset);
+            q.x.copy_advice(|| "x_q", &mut region, self.x_qr, offset);
+            q.y.copy_advice(|| "y_q", &mut region, self.y_qr, offset);
+
+            let x_p = p.x.value();
+            let y_p = p.y.value();
+            let x_q = q.x.value();
+            let y_q = q.y.value();
+
+            let alpha =  (x_q - x_p).invert();
+            let beta = x_p.invert();
+            let gamma = x_q.invert();
+            region.assign_advice(|| "α", self.alpha, offset, || alpha);
+            region.assign_advice(|| "β", self.beta, offset, || beta);
+            region.assign_advice(|| "γ", self.beta, offset, || gamma);
+
+            let delta = x_p
+                .zip(x_q)
+                .zip(y_p)
+                .zip(y_q)
+                .map(|((((x_p, x_q), y_p), y_q))| {
+                if x_q == x_p {
+                    (y_q + y_p).invert()
+                }else {
+                    Assigned::Zero
+                }
+            });
+            region.assign_advice(|| "δ", self.delta, offset, ||delta);
+
+            let lambda =  x_p
+                .zip(x_q)
+                .zip(y_p)
+                .zip(y_q)
+                .map(|((((x_p, x_q), y_p), y_q))| {
+                if x_q != x_p {
+                    (y_q - y_p) * (x_q - x_p).invert()
+                }else if y_p.is_zero_vartime() {
+                    (x_p.square() * F::from_u128(3)) * (y_p * F::from_u128(2)).invert()
+                }else {
+                    Assigned::Zero
+                }
+            });
+            region.assign_advice(|| "λ", self.lambda, offset, || lambda);
+
+            // Calculate and assing x_r, y_r
+            let x_r = lambda
+                .zip(x_p)
+                .zip(x_q)
+                .map(|((lambda, x_p), x_q)|{
+                    lambda.square() - x_p - x_q
+                });
+            let x_r_cell = region.assign_advice(|| "x_r", self.x_qr, offset + 1, || x_r)?;
+            let y_r = lambda
+                .zip(x_p)
+                .zip(x_r)
+                .zip(y_p)
+                .map(|(((lambda, x_p), x_r), y_p)|{
+                    ((x_p - x_r) * lambda) - y_p
+                });
+            let y_r_cell = region.assign_advice(|| "y_r", self.x_qr, offset + 1, || y_r)?;
+
+            let result = ECCPoint {
+                x: x_r_cell,
+                y: y_r_cell
+            };
+
+            Ok(result) 
+        });
     }
 }
 
