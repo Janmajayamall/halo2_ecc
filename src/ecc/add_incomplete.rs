@@ -1,6 +1,6 @@
 use super::ECCPoint;
 use halo2_proofs::{
-    arithmetic::FieldExt,
+    arithmetic::{CurveAffine, FieldExt},
     circuit::Region,
     plonk::{Advice, Column, ConstraintSystem, Constraints, Error, Expression, Selector},
     poly::Rotation,
